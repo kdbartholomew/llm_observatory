@@ -1,19 +1,28 @@
 """Tests for API authentication."""
 
 import os
-import pytest
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_KEY", "test-key")
 os.environ.setdefault("OBSERVATORY_API_KEY", "test-api-key")
 
+import pytest
+from unittest.mock import MagicMock
+
 from fastapi.testclient import TestClient
-from main import app, API_KEY
+from main import app, API_KEY, get_db
 
 
 @pytest.fixture
-def client():
-    return TestClient(app, raise_server_exceptions=False)
+def mock_db():
+    return MagicMock()
+
+
+@pytest.fixture
+def client(mock_db):
+    app.dependency_overrides[get_db] = lambda: mock_db
+    yield TestClient(app, raise_server_exceptions=False)
+    app.dependency_overrides.clear()
 
 
 class TestVerifyApiKey:
@@ -42,8 +51,8 @@ class TestVerifyApiKey:
         assert response.status_code == 403
         assert "Invalid API key" in response.json()["detail"]
 
-    def test_correct_api_key(self, client):
-        """Correct API key should pass authentication (may fail on DB)."""
+    def test_correct_api_key(self, client, mock_db):
+        """Correct API key should pass authentication."""
+        mock_db.table.return_value.select.return_value.order.return_value.execute.return_value = MagicMock(data=[])
         response = client.get("/projects", headers={"Authorization": f"Bearer {API_KEY}"})
-        # Should not be 401 or 403 — DB errors are 500
-        assert response.status_code not in (401, 403)
+        assert response.status_code == 200
