@@ -17,7 +17,7 @@ A lightweight, self-hosted observability tool for monitoring LLM API usage, cost
 - **Latency Analysis** — P50/P75/P90/P95/P99 distribution per model
 - **Anomaly Detection** — IQR-based spike detection for cost and latency
 - **Project Organization** — Group metrics by project (auto-created via SDK)
-- **Real-time Dashboard** — Beautiful React dashboard with 30s auto-refresh
+- **Real-time Dashboard** — React dashboard with 30s auto-refresh
 - **Zero Lock-in** — Self-hosted, open source, simple PostgreSQL schema
 
 ## Architecture
