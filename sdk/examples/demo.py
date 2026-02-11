@@ -15,7 +15,7 @@ import llm_observatory
 
 llm_observatory.configure(
     endpoint="http://localhost:8000",  # Your backend URL
-    api_key="demo-api-key-12345",      # Your API key
+    api_key=os.getenv("OBSERVATORY_API_KEY", ""),  # Your API key
 )
 
 
@@ -25,8 +25,9 @@ def ask_gpt(prompt: str) -> str:
     """Simple GPT call with automatic tracking."""
     client = OpenAI()
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": prompt}],
+        max_completion_tokens=512,
     )
     return response.choices[0].message.content
 
@@ -37,7 +38,8 @@ def summarize(text: str) -> str:
     """Summarize text - tracked under 'summarization' endpoint."""
     client = OpenAI()
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-mini",
+        max_completion_tokens=512,
         messages=[
             {"role": "system", "content": "Summarize the following text concisely."},
             {"role": "user", "content": text},

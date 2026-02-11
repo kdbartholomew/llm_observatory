@@ -1,7 +1,7 @@
 """Type definitions for LLM Observatory."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -14,7 +14,7 @@ class LLMMetric:
     tokens_out: int
     latency_ms: float
     cost: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     error: Optional[str] = None
     endpoint: Optional[str] = None  # For per-feature tracking
     project: Optional[str] = None   # For per-project tracking
@@ -38,8 +38,9 @@ class LLMMetric:
 # Format: (input_price_per_1m, output_price_per_1m)
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     # OpenAI - 2026 models
-    "gpt-5": (2.00, 8.00),
+    "gpt-5": (1.25, 10.00),
     "gpt-5-mini": (0.10, 0.40),
+    "gpt-5.2": (1.75, 14.00),
     "gpt-5.2-2025-12-11": (1.75, 14.00),
     # OpenAI - Legacy (for reference)
     "gpt-4o": (2.50, 10.00),
@@ -51,7 +52,8 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     # Anthropic - 2026 models (Claude 4.5)
     "claude-haiku-4-5-20251001": (0.80, 4.00),
     "claude-sonnet-4-5-20250929": (3.00, 15.00),
-    "claude-4-opus": (12.00, 60.00),
+    "claude-opus-4-6": (5.00, 25.00),
+    "claude-sonnet-4-20250514": (3.00, 15.00),
     "claude-4-sonnet": (2.50, 12.00),
     "claude-4-haiku": (0.50, 2.00),
     # Anthropic - Legacy
@@ -63,8 +65,8 @@ MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-3-haiku-20240307": (0.25, 1.25),
     # Google Gemini - 2026 models (2.5 series)
     "gemini-2.5-flash-lite": (0.05, 0.20),  # Low latency, high volume
-    "gemini-2.5-flash": (0.05, 0.20),      # Balanced speed and capability
-    "gemini-2.5-pro": (1.00, 4.00),        # Advanced reasoning
+    "gemini-2.5-flash": (0.15, 0.60),      # Balanced speed and capability
+    "gemini-2.5-pro": (1.25, 10.00),       # Advanced reasoning
     # Google Gemini - Legacy 3.x models
     "gemini-3-flash-preview": (0.05, 0.20),
     "gemini-3-pro-preview": (1.00, 4.00),

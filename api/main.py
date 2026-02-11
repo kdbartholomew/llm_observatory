@@ -5,14 +5,19 @@ A FastAPI service for ingesting and querying LLM usage metrics.
 Features: projects, latency distributions, anomalies, cost insights.
 """
 
+import logging
 import os
-from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from supabase import create_client, Client
 
 load_dotenv()
@@ -21,18 +26,38 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-API_KEY = os.getenv("OBSERVATORY_API_KEY", "demo-api-key-12345")
+API_KEY = os.getenv("OBSERVATORY_API_KEY", "")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Validate required configuration on startup."""
+    missing = []
+    if not SUPABASE_URL:
+        missing.append("SUPABASE_URL")
+    if not SUPABASE_KEY:
+        missing.append("SUPABASE_KEY")
+    if not API_KEY:
+        missing.append("OBSERVATORY_API_KEY")
+    if missing:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+    logger.info("LLM Observatory API starting up")
+    yield
+    logger.info("LLM Observatory API shutting down")
+
 
 app = FastAPI(
     title="LLM Observatory API",
     description="Lightweight observability for LLM API usage",
     version="2.0.0",
+    lifespan=lifespan,
 )
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -68,15 +93,15 @@ def verify_api_key(authorization: Optional[str] = Header(None)) -> str:
 
 class MetricIn(BaseModel):
     """Single metric from SDK."""
-    model: str
-    tokens_in: int
-    tokens_out: int
-    latency_ms: float
-    cost: float
+    model: str = Field(..., min_length=1, max_length=256)
+    tokens_in: int = Field(..., ge=0)
+    tokens_out: int = Field(..., ge=0)
+    latency_ms: float = Field(..., ge=0)
+    cost: float = Field(..., ge=0)
     timestamp: str
     error: Optional[str] = None
-    endpoint: Optional[str] = None
-    project: Optional[str] = None  # NEW: project name
+    endpoint: Optional[str] = Field(default=None, max_length=256)
+    project: Optional[str] = Field(default=None, max_length=256)
 
 
 class MetricsBatch(BaseModel):
@@ -243,8 +268,8 @@ def list_projects(
 
 @app.post("/projects")
 def create_project(
-    name: str,
-    description: Optional[str] = None,
+    name: str = Query(..., min_length=1, max_length=128),
+    description: Optional[str] = Query(default=None, max_length=512),
     db: Client = Depends(get_db),
     _: str = Depends(verify_api_key),
 ):
@@ -552,7 +577,7 @@ def get_iqr_anomalies(
     - Mild anomaly: value > Q3 + 1.5*IQR (for that model)
     - Extreme anomaly: value > Q3 + 3*IQR (for that model)
     """
-    cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
     
     # Build query
     query = db.table("metrics").select("id, model, cost, latency_ms, timestamp, error")
@@ -732,7 +757,7 @@ def get_savings_insights(
     project_id: Optional[str] = Query(None),
 ):
     """Calculate potential savings by switching models for endpoints."""
-    thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     
     query = db.table("metrics").select("endpoint, model, cost").is_("error", "null")
     query = query.gte("timestamp", thirty_days_ago)
@@ -875,7 +900,7 @@ def get_burn_rate(
     window_minutes: int = Query(60, description="Window size in minutes"),
 ):
     """Get real-time cost burn rate."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     current_start = now - timedelta(minutes=window_minutes)
     previous_start = now - timedelta(minutes=window_minutes * 2)
     

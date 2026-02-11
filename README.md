@@ -1,4 +1,11 @@
-# LLM Observatory 🔭
+# LLM Observatory
+
+[![Python](https://img.shields.io/badge/Python-3.9+-blue?logo=python&logoColor=white)](https://python.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A lightweight, self-hosted observability tool for monitoring LLM API usage, costs, and latency across OpenAI, Anthropic, and Google models.
 
@@ -17,11 +24,11 @@ A lightweight, self-hosted observability tool for monitoring LLM API usage, cost
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│    Your App     │────▶│    FastAPI      │────▶│    Supabase     │
+│    Your App     │────>│    FastAPI      │────>│    Supabase     │
 │   + SDK         │     │    Backend      │     │   (PostgreSQL)  │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                 │
-                                ▼
+                                v
                         ┌─────────────────┐
                         │  React          │
                         │  Dashboard      │
@@ -41,7 +48,7 @@ A lightweight, self-hosted observability tool for monitoring LLM API usage, cost
 1. Create a free project at [supabase.com](https://supabase.com)
 2. Go to **SQL Editor** and paste the contents of `supabase/schema.sql`
 3. Click **Run** to create tables and functions
-4. Get your credentials from **Settings → API**:
+4. Get your credentials from **Settings > API**:
    - Project URL
    - Service role key (not the anon key)
 
@@ -49,18 +56,12 @@ A lightweight, self-hosted observability tool for monitoring LLM API usage, cost
 
 ```bash
 cd api
-
-# Install dependencies
 pip install -r requirements.txt
 
-# Create environment file
-cat > .env << EOF
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-service-role-key
-OBSERVATORY_API_KEY=your-secure-api-key-here
-EOF
+# Copy and fill in environment variables
+cp .env.example .env
+# Edit .env with your Supabase credentials and API key
 
-# Run the API server
 uvicorn main:app --reload --port 8000
 ```
 
@@ -70,17 +71,12 @@ The API will be available at `http://localhost:8000`
 
 ```bash
 cd dashboard
-
-# Install dependencies
 npm install
 
-# Create environment file
-cat > .env << EOF
-VITE_API_URL=http://localhost:8000
-VITE_API_KEY=your-secure-api-key-here
-EOF
+# Copy and fill in environment variables
+cp .env.example .env
+# Edit .env with your API URL and key
 
-# Start development server
 npm run dev
 ```
 
@@ -103,16 +99,16 @@ from openai import OpenAI
 llm_observatory.configure(
     endpoint="http://localhost:8000",
     api_key="your-secure-api-key-here",
-    project="my-app",  # Optional: organize metrics by project
+    project="my-app",
 )
 
-# Wrap your LLM calls with the decorator
 @llm_observatory.observe
 def ask_gpt(prompt: str) -> str:
     client = OpenAI()
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
+        model="gpt-5-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_completion_tokens=512,
     )
     return response.choices[0].message.content
 
@@ -179,8 +175,6 @@ Generate real comparison data across providers:
 
 ```bash
 cd scripts
-
-# Install benchmark dependencies
 pip install -r requirements.txt
 
 # Set API keys
@@ -188,7 +182,6 @@ export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 export GOOGLE_API_KEY="..."
 
-# Run benchmark
 python benchmark.py
 ```
 
@@ -228,9 +221,35 @@ Most endpoints support:
 - `start` / `end` — Time range (ISO format)
 - `model` — Filter by model name
 
+## Development
+
+### Running Tests
+
+```bash
+# SDK tests
+cd sdk
+pip install -e ".[dev]"
+pytest tests/ -v
+
+# API tests
+cd api
+pip install -r requirements.txt
+pytest tests/ -v
+```
+
+### Docker
+
+```bash
+# Build and run with Docker Compose
+docker compose up
+
+# Or build the API image directly
+docker build -t llm-observatory-api ./api
+```
+
 ## Deployment
 
-### Vercel (Recommended)
+### Vercel
 
 **Backend:**
 ```bash
@@ -249,15 +268,7 @@ Set environment variables in the Vercel dashboard.
 
 ### Docker
 
-```dockerfile
-# api/Dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
+See `api/Dockerfile` and `docker-compose.yml` for production deployment.
 
 ## Project Structure
 
@@ -265,6 +276,8 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 llm_observatory/
 ├── api/                    # FastAPI backend
 │   ├── main.py            # API routes and logic
+│   ├── tests/             # API unit tests
+│   ├── Dockerfile         # Production Docker image
 │   ├── requirements.txt   # Python dependencies
 │   └── vercel.json        # Vercel deployment config
 │
@@ -281,6 +294,7 @@ llm_observatory/
 │   │   ├── tracker.py    # @observe decorator
 │   │   ├── client.py     # HTTP client with batching
 │   │   └── types.py      # Data types and pricing
+│   ├── tests/            # SDK unit tests
 │   └── pyproject.toml
 │
 ├── scripts/               # Utility scripts
@@ -301,14 +315,20 @@ llm_observatory/
 - gpt-3.5-turbo
 
 ### Anthropic
-- claude-4-opus, claude-4-sonnet, claude-4-haiku
-- claude-haiku-4-5, claude-sonnet-4-5
+- claude-opus-4-6, claude-sonnet-4, claude-sonnet-4-5, claude-haiku-4-5
 - claude-3.5-sonnet, claude-3-opus
 
 ### Google Gemini
 - gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite
 - gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash
 
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Run tests (`pytest`) and ensure they pass
+4. Commit your changes and open a pull request
+
 ## License
 
-MIT
+[MIT](LICENSE)

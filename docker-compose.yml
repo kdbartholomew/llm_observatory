@@ -1,0 +1,17 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./api/.env
+    restart: unless-stopped
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./dashboard/.env
+    depends_on:
+      - api

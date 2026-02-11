@@ -2,7 +2,7 @@
 
 import functools
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional, TypeVar
 
 from .client import ObservatoryClient, get_client, set_client
@@ -200,7 +200,7 @@ def _extract_metric(
         tokens_out=tokens_out,
         latency_ms=round(latency_ms, 2),
         cost=cost,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         error=error,
         endpoint=endpoint_tag,
         project=project,

@@ -33,7 +33,7 @@ from code_validator import check_code_accuracy
 # Configure Observatory (update endpoint if deployed)
 llm_observatory.configure(
     endpoint=os.getenv("OBSERVATORY_URL", "http://localhost:8000"),
-    api_key=os.getenv("OBSERVATORY_API_KEY", "demo-api-key-12345"),
+    api_key=os.getenv("OBSERVATORY_API_KEY", ""),
     project="benchmark",  # Project name for tracking
     batch_size=5,
     flush_interval=2.0,
@@ -45,12 +45,14 @@ MODELS = {
     "openai": [
         "gpt-5-mini",           # Fast, cost-efficient
         "gpt-5",                # Current flagship
+        "gpt-5.2",
         "gpt-5.2-2025-12-11",
         "gpt-4.1-2025-04-14",
     ],
     "anthropic": [
         "claude-haiku-4-5-20251001",   # Latest high-speed variant  
         "claude-sonnet-4-5-20250929",  # Recommended high-intelligence model
+        "claude-opus-4-6",                 # Most capable model
     ],
     "google": [
         "gemini-2.5-flash-lite",   # Low latency, high volume
@@ -311,7 +313,7 @@ def call_openai_api(client, model: str, system: str, prompt: str):
     return client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": system},
+            {"role": "developer", "content": system},
             {"role": "user", "content": prompt},
         ],
         max_completion_tokens=500,

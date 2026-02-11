@@ -2,11 +2,14 @@
 
 import asyncio
 import atexit
+import logging
 import threading
 from queue import Queue, Empty
 from typing import Optional
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from .types import LLMMetric
 
@@ -135,20 +138,23 @@ class ObservatoryClient:
             response.raise_for_status()
         except httpx.HTTPError as e:
             # Log but don't crash - observability shouldn't break the app
-            print(f"[Observatory] Failed to send metrics: {e}")
+            logger.warning("Failed to send metrics: %s", e)
 
 
 # Global client instance
 _client: Optional[ObservatoryClient] = None
+_client_lock = threading.Lock()
 
 
 def get_client() -> Optional[ObservatoryClient]:
     """Get the global client instance."""
-    return _client
+    with _client_lock:
+        return _client
 
 
 def set_client(client: ObservatoryClient) -> None:
     """Set the global client instance."""
     global _client
-    _client = client
+    with _client_lock:
+        _client = client
 

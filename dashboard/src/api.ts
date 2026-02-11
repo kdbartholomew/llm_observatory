@@ -10,7 +10,10 @@ import {
 } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const API_KEY = import.meta.env.VITE_API_KEY || 'demo-api-key-12345';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+if (!API_KEY) {
+  console.warn('[Observatory] VITE_API_KEY is not set. API requests will fail.');
+}
 
 const headers = {
   'Content-Type': 'application/json',

@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llm-observatory"
-version = "0.1.0"
+version = "1.0.0"
 description = "Lightweight observability for LLM API usage"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "httpx>=0.25.0",
+    "httpx>=0.25.0,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +19,9 @@ dev = [
     "openai>=1.0",
     "anthropic>=0.18",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["llm_observatory"]
