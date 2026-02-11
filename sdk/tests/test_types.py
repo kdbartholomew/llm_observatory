@@ -1,7 +1,6 @@
 """Tests for LLM Observatory type definitions and cost calculation."""
 
 import pytest
-from datetime import datetime, timezone
 
 from llm_observatory.types import LLMMetric, calculate_cost, MODEL_PRICING
 

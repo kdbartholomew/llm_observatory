@@ -1,8 +1,5 @@
 """Tests for the metric extraction logic in tracker.py."""
 
-import pytest
-from unittest.mock import MagicMock
-
 from llm_observatory.tracker import _extract_metric
 
 

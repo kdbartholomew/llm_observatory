@@ -2,7 +2,7 @@
 
 import os
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 # Set required env vars before importing the app
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")

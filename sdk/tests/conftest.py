@@ -2,7 +2,7 @@
 
 import pytest
 
-from llm_observatory.client import ObservatoryClient, set_client, _client_lock
+from llm_observatory.client import ObservatoryClient
 from llm_observatory.types import LLMMetric
 
 

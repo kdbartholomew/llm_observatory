@@ -1,9 +1,6 @@
 """Tests for the ObservatoryClient batching and queue logic."""
 
-import pytest
 import threading
-import time
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from llm_observatory.client import ObservatoryClient, get_client, set_client
 from llm_observatory.types import LLMMetric

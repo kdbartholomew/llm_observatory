@@ -9,9 +9,9 @@ from typing import Optional
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
 from .types import LLMMetric
+
+logger = logging.getLogger(__name__)
 
 
 class ObservatoryClient:
